@@ -1,4 +1,14 @@
-const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes } = require("discord.js");
+const {
+  Client,
+  GatewayIntentBits,
+  SlashCommandBuilder,
+  REST,
+  Routes,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
+
 const axios = require("axios");
 require("dotenv").config();
 
@@ -6,7 +16,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
-// 🔥 ROLE MAP (WSTAW ID RÓL)
+// 🔥 ROLE MAP (TWOJE ID)
 const roleMap = {
   1: "1488562516668973066",
   2: "1488562786240827392",
@@ -20,24 +30,24 @@ const roleMap = {
   10: "1488562554237354076"
 };
 
-// pamięć kodów
+// 🧠 pamięć kodów
 const pending = new Map();
 
-// extract nick
+// 🔎 extract nick
 function extractNickname(url) {
   const match = url.match(/players\/([a-zA-Z0-9_-]+)/);
   return match ? match[1] : null;
 }
 
-// slash command rejestracja
+// 📌 slash command
 const commands = [
   new SlashCommandBuilder()
     .setName("verify")
-    .setDescription("FACEIT verify")
+    .setDescription("FACEIT verify system")
     .addSubcommand(sub =>
       sub
         .setName("faceit")
-        .setDescription("Verify FACEIT account")
+        .setDescription("Start FACEIT verification")
         .addStringOption(opt =>
           opt.setName("link")
             .setDescription("FACEIT profile link")
@@ -48,6 +58,7 @@ const commands = [
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
+// 🚀 register commands
 client.once("ready", async () => {
   console.log(`✅ Logged as ${client.user.tag}`);
 
@@ -62,44 +73,75 @@ client.once("ready", async () => {
   }
 });
 
-// interaction
+// 💬 interactions
 client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
 
-  if (
-    interaction.commandName === "verify" &&
-    interaction.options.getSubcommand() === "faceit"
-  ) {
-    const url = interaction.options.getString("link");
-    const userId = interaction.user.id;
+  // ================== SLASH COMMAND ==================
+  if (interaction.isChatInputCommand()) {
 
-    const nick = extractNickname(url);
+    if (
+      interaction.commandName === "verify" &&
+      interaction.options.getSubcommand() === "faceit"
+    ) {
+      const url = interaction.options.getString("link");
+      const userId = interaction.user.id;
 
-    if (!nick) {
-      return interaction.reply("❌ Zły link FACEIT");
-    }
+      const nick = extractNickname(url);
 
-    const existing = pending.get(userId);
+      if (!nick) {
+        return interaction.reply({
+          content: "❌ Zły link FACEIT",
+          ephemeral: true
+        });
+      }
 
-    // 1. generate code
-    if (!existing) {
-      const code = Math.floor(1000000000 + Math.random() * 9000000000).toString();
+      const code = Math.floor(
+        1000000000 + Math.random() * 9000000000
+      ).toString();
 
       pending.set(userId, { code, nick });
 
-      return interaction.reply(
-        `🔐 Wklej ten kod do BIO FACEIT:\n\n**${code}**\n\nNastępnie wpisz /verify faceit jeszcze raz.`
+      const button = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId("verify_faceit")
+          .setLabel("🔎 Sprawdź FACEIT")
+          .setStyle(ButtonStyle.Primary)
       );
+
+      return interaction.reply({
+        content:
+          `🔐 Wklej ten kod do bio profilu FACEIT:\n\n**${code}**\n\n` +
+          `Kliknij przycisk po wklejeniu kodu.`,
+        components: [button],
+        ephemeral: true
+      });
+    }
+  }
+
+  // ================== BUTTON ==================
+  if (interaction.isButton()) {
+
+    if (interaction.customId !== "verify_faceit") return;
+
+    const userId = interaction.user.id;
+    const data = pending.get(userId);
+
+    if (!data) {
+      return interaction.reply({
+        content: "❌ Brak aktywnej weryfikacji",
+        ephemeral: true
+      });
     }
 
-    // 2. verify
-    const { code } = existing;
+    const { code, nick } = data;
 
     try {
       const res = await axios.get(
         `https://open.faceit.com/data/v4/players?nickname=${nick}`,
         {
-          headers: { Authorization: `Bearer ${process.env.FACEIT_KEY}` }
+          headers: {
+            Authorization: `Bearer ${process.env.FACEIT_KEY}`
+          }
         }
       );
 
@@ -108,7 +150,9 @@ client.on("interactionCreate", async (interaction) => {
       const profile = await axios.get(
         `https://open.faceit.com/data/v4/players/${playerId}`,
         {
-          headers: { Authorization: `Bearer ${process.env.FACEIT_KEY}` }
+          headers: {
+            Authorization: `Bearer ${process.env.FACEIT_KEY}`
+          }
         }
       );
 
@@ -116,30 +160,45 @@ client.on("interactionCreate", async (interaction) => {
       const level = profile.data.games?.cs2?.skill_level;
 
       if (!bio.includes(code)) {
-        return interaction.reply("❌ Kod nie znaleziony w BIO FACEIT");
+        return interaction.reply({
+          content: "❌ Kod nie znaleziony w bio FACEIT",
+          ephemeral: true
+        });
       }
 
       const roleId = roleMap[level];
 
       if (!roleId) {
-        return interaction.reply("❌ Brak roli dla tego levela");
+        return interaction.reply({
+          content: "❌ Brak roli dla tego levela",
+          ephemeral: true
+        });
       }
 
       const role = interaction.guild.roles.cache.get(roleId);
 
       if (!role) {
-        return interaction.reply("❌ Nie znaleziono roli");
+        return interaction.reply({
+          content: "❌ Nie znaleziono roli",
+          ephemeral: true
+        });
       }
 
       await interaction.member.roles.add(role);
 
       pending.delete(userId);
 
-      return interaction.reply(`✅ Zweryfikowano! FACEIT level: ${level}`);
+      return interaction.reply({
+        content: `✅ Zweryfikowano! FACEIT level: ${level}`,
+        ephemeral: true
+      });
 
     } catch (err) {
       console.error(err);
-      return interaction.reply("❌ Błąd FACEIT API");
+      return interaction.reply({
+        content: "❌ Błąd FACEIT API",
+        ephemeral: true
+      });
     }
   }
 });
