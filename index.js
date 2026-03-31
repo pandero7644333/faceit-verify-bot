@@ -16,7 +16,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
-// 🔥 ROLE MAP (TWOJE ID)
+// 🔥 TWOJE ROLE
 const roleMap = {
   1: "1488562516668973066",
   2: "1488562786240827392",
@@ -30,27 +30,25 @@ const roleMap = {
   10: "1488562554237354076"
 };
 
-// 🧠 pamięć kodów
 const pending = new Map();
 
-// 🔎 extract nick
 function extractNickname(url) {
   const match = url.match(/players\/([a-zA-Z0-9_-]+)/);
   return match ? match[1] : null;
 }
 
-// 📌 slash command
+// 🔥 ZMIENIONA NAZWA KOMENDY (żeby odświeżyć)
 const commands = [
   new SlashCommandBuilder()
-    .setName("verify")
-    .setDescription("FACEIT verify system")
+    .setName("verify2")
+    .setDescription("FACEIT verify")
     .addSubcommand(sub =>
       sub
         .setName("faceit")
-        .setDescription("Start FACEIT verification")
+        .setDescription("Verify FACEIT")
         .addStringOption(opt =>
           opt.setName("link")
-            .setDescription("FACEIT profile link")
+            .setDescription("FACEIT link")
             .setRequired(true)
         )
     )
@@ -58,29 +56,26 @@ const commands = [
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-// 🚀 register commands
+// ✅ READY
 client.once("ready", async () => {
   console.log(`✅ Logged as ${client.user.tag}`);
 
-  try {
-    await rest.put(
-      Routes.applicationCommands(client.user.id),
-      { body: commands }
-    );
-    console.log("✅ Slash commands registered");
-  } catch (err) {
-    console.error(err);
-  }
+  await rest.put(
+    Routes.applicationCommands(client.user.id),
+    { body: commands }
+  );
+
+  console.log("✅ Commands updated");
 });
 
-// 💬 interactions
+// 💬 INTERACTIONS
 client.on("interactionCreate", async (interaction) => {
 
-  // ================== SLASH COMMAND ==================
+  // SLASH
   if (interaction.isChatInputCommand()) {
 
     if (
-      interaction.commandName === "verify" &&
+      interaction.commandName === "verify2" &&
       interaction.options.getSubcommand() === "faceit"
     ) {
       const url = interaction.options.getString("link");
@@ -89,10 +84,7 @@ client.on("interactionCreate", async (interaction) => {
       const nick = extractNickname(url);
 
       if (!nick) {
-        return interaction.reply({
-          content: "❌ Zły link FACEIT",
-          ephemeral: true
-        });
+        return interaction.reply({ content: "❌ Zły link", ephemeral: true });
       }
 
       const code = Math.floor(
@@ -103,32 +95,31 @@ client.on("interactionCreate", async (interaction) => {
 
       const button = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId("verify_faceit")
-          .setLabel("🔎 Sprawdź FACEIT")
+          .setCustomId("verify_btn")
+          .setLabel("🔎 Sprawdź")
           .setStyle(ButtonStyle.Primary)
       );
 
       return interaction.reply({
         content:
-          `🔐 Wklej ten kod do bio profilu FACEIT:\n\n**${code}**\n\n` +
-          `Kliknij przycisk po wklejeniu kodu.`,
+          `🔐 Wklej ten kod do bio profilu FACEIT:\n\n**${code}**\n\nKliknij przycisk po wklejeniu.`,
         components: [button],
         ephemeral: true
       });
     }
   }
 
-  // ================== BUTTON ==================
+  // BUTTON
   if (interaction.isButton()) {
 
-    if (interaction.customId !== "verify_faceit") return;
+    if (interaction.customId !== "verify_btn") return;
 
     const userId = interaction.user.id;
     const data = pending.get(userId);
 
     if (!data) {
       return interaction.reply({
-        content: "❌ Brak aktywnej weryfikacji",
+        content: "❌ Brak weryfikacji",
         ephemeral: true
       });
     }
@@ -161,25 +152,18 @@ client.on("interactionCreate", async (interaction) => {
 
       if (!bio.includes(code)) {
         return interaction.reply({
-          content: "❌ Kod nie znaleziony w bio FACEIT",
+          content: "❌ Kod nie znaleziony (poczekaj chwilę)",
           ephemeral: true
         });
       }
 
       const roleId = roleMap[level];
 
-      if (!roleId) {
-        return interaction.reply({
-          content: "❌ Brak roli dla tego levela",
-          ephemeral: true
-        });
-      }
-
       const role = interaction.guild.roles.cache.get(roleId);
 
       if (!role) {
         return interaction.reply({
-          content: "❌ Nie znaleziono roli",
+          content: "❌ Brak roli",
           ephemeral: true
         });
       }
@@ -189,14 +173,14 @@ client.on("interactionCreate", async (interaction) => {
       pending.delete(userId);
 
       return interaction.reply({
-        content: `✅ Zweryfikowano! FACEIT level: ${level}`,
+        content: `✅ Zweryfikowano! Level: ${level}`,
         ephemeral: true
       });
 
     } catch (err) {
       console.error(err);
       return interaction.reply({
-        content: "❌ Błąd FACEIT API",
+        content: "❌ API error",
         ephemeral: true
       });
     }
