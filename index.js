@@ -16,7 +16,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
-// 🔥 TWOJE ROLE
+// 🔥 ROLE MAP
 const roleMap = {
   1: "1488562516668973066",
   2: "1488562786240827392",
@@ -37,7 +37,7 @@ function extractNickname(url) {
   return match ? match[1] : null;
 }
 
-// 🔥 ZMIENIONA NAZWA KOMENDY (żeby odświeżyć)
+// 🔥 verify2 (odświeżona komenda)
 const commands = [
   new SlashCommandBuilder()
     .setName("verify2")
@@ -56,7 +56,6 @@ const commands = [
 
 const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-// ✅ READY
 client.once("ready", async () => {
   console.log(`✅ Logged as ${client.user.tag}`);
 
@@ -68,10 +67,9 @@ client.once("ready", async () => {
   console.log("✅ Commands updated");
 });
 
-// 💬 INTERACTIONS
 client.on("interactionCreate", async (interaction) => {
 
-  // SLASH
+  // ================= SLASH =================
   if (interaction.isChatInputCommand()) {
 
     if (
@@ -102,14 +100,15 @@ client.on("interactionCreate", async (interaction) => {
 
       return interaction.reply({
         content:
-          `🔐 Wklej ten kod do bio profilu FACEIT:\n\n**${code}**\n\nKliknij przycisk po wklejeniu.`,
+          `🔐 Wklej ten kod do bio profilu FACEIT:\n\n**${code}**\n\n` +
+          `Kliknij przycisk po 30–60 sekundach.`,
         components: [button],
         ephemeral: true
       });
     }
   }
 
-  // BUTTON
+  // ================= BUTTON =================
   if (interaction.isButton()) {
 
     if (interaction.customId !== "verify_btn") return;
@@ -119,7 +118,7 @@ client.on("interactionCreate", async (interaction) => {
 
     if (!data) {
       return interaction.reply({
-        content: "❌ Brak weryfikacji",
+        content: "❌ Brak aktywnej weryfikacji",
         ephemeral: true
       });
     }
@@ -150,20 +149,31 @@ client.on("interactionCreate", async (interaction) => {
       const bio = profile.data.about || "";
       const level = profile.data.games?.cs2?.skill_level;
 
-      if (!bio.includes(code)) {
+      // 🔍 DEBUG
+      console.log("BIO:", bio);
+      console.log("CODE:", code);
+
+      if (!bio || !bio.includes(code)) {
         return interaction.reply({
-          content: "❌ Kod nie znaleziony (poczekaj chwilę)",
+          content: "❌ Kod nie znaleziony (poczekaj 30–60s i spróbuj ponownie)",
           ephemeral: true
         });
       }
 
       const roleId = roleMap[level];
 
+      if (!roleId) {
+        return interaction.reply({
+          content: "❌ Brak roli dla tego levela",
+          ephemeral: true
+        });
+      }
+
       const role = interaction.guild.roles.cache.get(roleId);
 
       if (!role) {
         return interaction.reply({
-          content: "❌ Brak roli",
+          content: "❌ Nie znaleziono roli",
           ephemeral: true
         });
       }
@@ -180,7 +190,7 @@ client.on("interactionCreate", async (interaction) => {
     } catch (err) {
       console.error(err);
       return interaction.reply({
-        content: "❌ API error",
+        content: "❌ Błąd FACEIT API",
         ephemeral: true
       });
     }
